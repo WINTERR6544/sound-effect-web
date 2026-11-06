@@ -1,0 +1,16 @@
+{
+  "name": "stage-soundboard",
+  "productName": "Stage Soundboard",
+  "version": "1.0.0",
+  "description": "Soundboard for live theatre: audio/video cues with live EQ, effects and a projector window",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "node build.js"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "33.4.11"
+  }
+}

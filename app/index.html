@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stage Soundboard</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --line:#2b303b; --text:#e8eaf0; --muted:#8b92a3;
+  --accent:#4da3ff; --danger:#ff4d5e; --warn:#ffb020; --ok:#3ddc84;
+  font-family: "Noto Sans Thai","Sarabun","Segoe UI","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-size:14px}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:#465063}
+button.primary{background:var(--accent);border-color:var(--accent);color:#04111f;font-weight:600}
+button.danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:700}
+button.warn{background:#3a2c0b;border-color:var(--warn);color:var(--warn);font-weight:600}
+button.small{padding:4px 9px;font-size:12px}
+button.on{background:var(--warn);color:#000;border-color:var(--warn)}
+#app{display:grid;grid-template-rows:auto 1fr;height:100%}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:16px;margin:0 6px 0 0;white-space:nowrap}
+#viz{height:36px;width:220px;background:#0a0c10;border-radius:6px;border:1px solid var(--line)}
+.spacer{flex:1}
+main{display:grid;grid-template-columns:1fr 360px;min-height:0}
+#boardWrap{overflow:auto;padding:14px}
+#boardTools{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+#boardTools .hint{color:var(--muted);font-size:12px}
+#board{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.pad{position:relative;aspect-ratio:1.15;border-radius:12px;background:var(--panel2);border:2px solid transparent;
+  cursor:pointer;user-select:none;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;
+  box-shadow:inset 0 -60px 60px -40px color-mix(in srgb,var(--c) 45%,transparent);transition:transform .05s}
+.pad::before{content:"";position:absolute;inset:0;background:var(--c);opacity:.18;pointer-events:none}
+.pad:active{transform:scale(.98)}
+.pad.empty{border:2px dashed var(--line);box-shadow:none}
+.pad.empty::before{opacity:0}
+.pad.selected{border-color:var(--accent)}
+.pad.playing{border-color:var(--c)}
+.pad.playing::before{opacity:.45}
+.pad.dragover{border-color:var(--ok);border-style:dashed}
+.pad .key{position:absolute;top:8px;left:8px;background:#000a;border-radius:6px;padding:2px 7px;font-weight:700;font-size:13px;min-width:24px;text-align:center}
+.pad .gear{position:absolute;top:5px;right:5px;background:#0008;border:none;border-radius:6px;padding:3px 7px;font-size:14px}
+.pad .name{position:relative;font-weight:600;font-size:15px;line-height:1.25;word-break:break-word;max-height:3.8em;overflow:hidden}
+.pad .meta{position:relative;color:#c8ccd6;font-size:11px;margin-top:4px;display:flex;justify-content:space-between;gap:6px}
+.pad .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--c);width:0}
+.pad.empty .name{color:var(--muted);font-weight:400;font-size:13px}
+aside{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:none;border-radius:0;background:transparent;padding:11px 6px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
+.tabbody{overflow:auto;padding:14px;flex:1}
+h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+h3:first-child{margin-top:0}
+.row{display:grid;grid-template-columns:110px 1fr 58px;align-items:center;gap:8px;margin:7px 0}
+.row label{color:#c5c9d3;font-size:13px}
+.row .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
+.row input[type=range]{width:100%;accent-color:var(--accent)}
+.row input[type=text],.row select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.row.full{grid-template-columns:110px 1fr}
+.row input[type=color]{width:100%;height:30px;background:none;border:1px solid var(--line);border-radius:6px;padding:2px}
+.check{display:flex;align-items:center;gap:8px;margin:8px 0;color:#c5c9d3}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.fileinfo{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;word-break:break-all}
+.fileinfo small{color:var(--muted)}
+.muted{color:var(--muted);font-size:12.5px;line-height:1.5}
+.preview{position:relative;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.preview video,#stageVideo{width:100%;height:100%;object-fit:contain}
+.layer{position:absolute;inset:0}
+.black{position:absolute;inset:0;background:#000;opacity:0;transition:opacity 1s;pointer-events:none}
+#mediaHost{position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;overflow:hidden;pointer-events:none}
+#mediaHost video{width:2px;height:2px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#000d;border:1px solid var(--line);padding:10px 16px;border-radius:10px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+#dropAll{position:fixed;inset:0;background:#4da3ff22;border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:22px;z-index:8;pointer-events:none}
+#dropAll.show{display:flex}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
+@media (max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line);max-height:50vh}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎭 Stage Soundboard</h1>
+    <canvas id="viz" width="440" height="72" title="ระดับเสียงรวม"></canvas>
+    <div class="spacer"></div>
+    <button id="btnStage" title="เปิดหน้าต่างวิดีโอแล้วลากไปจอโปรเจกเตอร์">🖥️ เปิดจอวิดีโอ</button>
+    <button id="btnExport" title="บันทึกโชว์ทั้งชุด (ไฟล์ + การตั้งค่า) เป็นไฟล์เดียว">💾 บันทึกโชว์</button>
+    <button id="btnImport" title="เปิดไฟล์โชว์ .ssbshow">📂 เปิดโชว์</button>
+    <button id="btnFadeAll" class="warn" title="เฟดออกทุกเสียง (Space)">⤓ เฟดออกทั้งหมด <kbd>Space</kbd></button>
+    <button id="btnStopAll" class="danger" title="หยุดทุกเสียงทันที (Esc)">■ หยุดทั้งหมด <kbd>Esc</kbd></button>
+  </header>
+  <main>
+    <section id="boardWrap">
+      <div id="boardTools">
+        <button id="btnAddPad">＋ เพิ่ม pad</button>
+        <button id="btnAddFiles">＋ เพิ่มหลายไฟล์</button>
+        <span class="hint">คลิก pad เพื่อเล่น · ⚙ หรือคลิกขวาเพื่อแก้ไข · ลากไฟล์มาวางบน pad ได้</span>
+      </div>
+      <div id="board"></div>
+    </section>
+    <aside>
+      <div class="tabs">
+        <button data-tab="pad" class="active">Pad</button>
+        <button data-tab="master">Master</button>
+        <button data-tab="video">วิดีโอ</button>
+      </div>
+      <div class="tabbody" id="tab-pad"></div>
+      <div class="tabbody" id="tab-master" hidden></div>
+      <div class="tabbody" id="tab-video" hidden></div>
+    </aside>
+  </main>
+</div>
+<div id="mediaHost"></div>
+<div id="toast"></div>
+<div id="dropAll">วางไฟล์เพื่อเพิ่มลง pad ว่าง</div>
+<input type="file" id="filePick" accept="audio/*,video/*" hidden>
+<input type="file" id="filePickMulti" accept="audio/*,video/*" multiple hidden>
+<input type="file" id="showPick" accept=".ssbshow" hidden>
+
+<script>
+'use strict';
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmtTime = s => { if (!isFinite(s) || s < 0) s = 0; const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0'); };
+let toastT;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
+const VIDEO_EXT = /\.(mp4|m4v|webm|mov|mkv|ogv|avi)$/i;
+const isVideoFile = (type, name) => (type || '').startsWith('video') || (!type && VIDEO_EXT.test(name || ''));
+
+const COLORS = ['#ff5d73', '#ffa940', '#ffd84d', '#3ddc84', '#36cfc9', '#4da3ff', '#9d7bff', '#ff7ad9'];
+const DEFAULT_KEYS = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0',
+  'KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP',
+  'KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL',
+  'KeyZ','KeyX','KeyC','KeyV','KeyB','KeyN','KeyM'];
+// Keys are stored as KeyboardEvent.code so they work with a Thai keyboard layout too.
+function keyLabel(code) {
+  if (!code) return '';
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Numpad')) return 'Num' + code.slice(6);
+  return code.replace('Arrow', '↕').replace('Bracket', '[').replace('Semicolon', ';');
+}
+const RESERVED = new Set(['Space', 'Escape', 'Tab', 'Enter', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'CapsLock']);
+
+/* ================= storage (IndexedDB) ================= */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res) => {
+      try {
+        const r = indexedDB.open('stage-soundboard', 1);
+        r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('files'); d.createObjectStore('kv'); };
+        r.onsuccess = () => { this.db = r.result; res(true); };
+        r.onerror = () => res(false);
+      } catch (e) { res(false); }
+    });
+  },
+  req(store, mode, fn) {
+    if (!this.db) return Promise.resolve(undefined);
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode); const q = fn(t.objectStore(store));
+      t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  },
+  get(s, k) { return this.req(s, 'readonly', o => o.get(k)); },
+  put(s, k, v) { return this.req(s, 'readwrite', o => o.put(v, k)); },
+  del(s, k) { return this.req(s, 'readwrite', o => o.delete(k)); },
+  keys(s) { return this.req(s, 'readonly', o => o.getAllKeys()); },
+  clear(s) { return this.req(s, 'readwrite', o => o.clear()); },
+};
+const files = new Map();   // fileId -> Blob
+const urls = new Map();    // fileId -> object URL
+function urlFor(id) { if (!urls.has(id)) urls.set(id, URL.createObjectURL(files.get(id))); return urls.get(id); }
+
+/* ================= state ================= */
+const PAD_DEFAULTS = { name: '', fileId: null, fileName: '', fileType: '', mode: 'restart', loop: false,
+  volume: 1, speed: 1, keepPitch: true, fadeIn: 0, fadeOut: 0, pan: 0,
+  low: 0, mid: 0, high: 0, lowpass: 20000, highpass: 20, reverb: 0, delay: 0 };
+const MASTER_DEFAULTS = { volume: 1, low: 0, mid: 0, high: 0, reverbSize: 2.5, delayTime: 0.35, delayFeedback: 0.35 };
+const VIDEO_DEFAULTS = { brightness: 100, contrast: 100, saturate: 100, hue: 0, blur: 0, opacity: 100, blackout: false };
+function newPad(i) { return Object.assign({}, PAD_DEFAULTS, { id: uid(), color: COLORS[i % COLORS.length], key: '' }); }
+function freeKey() { const used = new Set(state.pads.map(p => p.key)); return DEFAULT_KEYS.find(k => !used.has(k)) || ''; }
+let state = { pads: [], master: { ...MASTER_DEFAULTS }, video: { ...VIDEO_DEFAULTS } };
+let selectedId = null;
+
+let saveT;
+function save() { clearTimeout(saveT); saveT = setTimeout(() => DB.put('kv', 'state', state).catch(() => {}), 300); }
+async function gcFiles() {
+  const used = new Set(state.pads.map(p => p.fileId).filter(Boolean));
+  for (const id of [...files.keys()]) if (!used.has(id)) {
+    files.delete(id); if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
+    DB.del('files', id).catch(() => {});
+  }
+}
+
+/* ================= audio engine ================= */
+let ctx = null, M = null;
+const rt = new Map(); // padId -> runtime chain {nodes..., voices: []}
+
+function ensureAudio() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  M = {};
+  M.input = ctx.createGain();
+  M.low = biquad('lowshelf', 250); M.mid = biquad('peaking', 1000, 0.9); M.high = biquad('highshelf', 4000);
+  M.gain = ctx.createGain();
+  // A limiter on the output so stacked cues don't clip the PA.
+  M.limiter = ctx.createDynamicsCompressor();
+  M.limiter.threshold.value = -3; M.limiter.knee.value = 0; M.limiter.ratio.value = 20; M.limiter.attack.value = 0.003; M.limiter.release.value = 0.15;
+  M.analyser = ctx.createAnalyser(); M.analyser.fftSize = 1024; M.analyser.smoothingTimeConstant = 0.7;
+  M.input.connect(M.low).connect(M.mid).connect(M.high).connect(M.gain).connect(M.limiter).connect(M.analyser).connect(ctx.destination);
+  M.reverbIn = ctx.createGain(); M.convolver = ctx.createConvolver();
+  M.reverbIn.connect(M.convolver).connect(M.input);
+  M.delayIn = ctx.createGain(); M.delay = ctx.createDelay(2); M.feedback = ctx.createGain();
+  M.delayIn.connect(M.delay); M.delay.connect(M.feedback).connect(M.delay); M.delay.connect(M.input);
+  buildImpulse(); applyMaster();
+}
+function biquad(type, freq, q) { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = freq; if (q) b.Q.value = q; return b; }
+let impulseFor = null;
+function buildImpulse() {
+  const secs = state.master.reverbSize; if (impulseFor === secs) return; impulseFor = secs;
+  const rate = ctx.sampleRate, len = Math.floor(rate * secs), buf = ctx.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  M.convolver.buffer = buf;
+}
+function setP(param, v) { param.setTargetAtTime(v, ctx.currentTime, 0.03); }
+function applyMaster() {
+  if (!ctx) return; const m = state.master;
+  setP(M.gain.gain, m.volume); setP(M.low.gain, m.low); setP(M.mid.gain, m.mid); setP(M.high.gain, m.high);
+  setP(M.delay.delayTime, m.delayTime); setP(M.feedback.gain, m.delayFeedback);
+}
+let impT; function scheduleImpulse() { clearTimeout(impT); impT = setTimeout(() => ctx && buildImpulse(), 250); }
+
+function chainFor(pad) {
+  let r = rt.get(pad.id); if (r) return r;
+  r = { voices: [] };
+  r.input = ctx.createGain();
+  r.hp = biquad('highpass', pad.highpass); r.low = biquad('lowshelf', 250); r.mid = biquad('peaking', 1000, 0.9); r.high = biquad('highshelf', 4000);
+  r.lp = biquad('lowpass', pad.lowpass); r.vol = ctx.createGain(); r.pan = ctx.createStereoPanner();
+  r.rev = ctx.createGain(); r.del = ctx.createGain();
+  r.input.connect(r.hp).connect(r.low).connect(r.mid).connect(r.high).connect(r.lp).connect(r.vol).connect(r.pan).connect(M.input);
+  r.pan.connect(r.rev).connect(M.reverbIn); r.pan.connect(r.del).connect(M.delayIn);
+  rt.set(pad.id, r); applyPad(pad, true);
+  return r;
+}
+function applyPad(pad, instant) {
+  const r = rt.get(pad.id); if (!r) return;
+  const set = instant ? (p, v) => { p.value = v; } : setP;
+  set(r.vol.gain, pad.volume); set(r.low.gain, pad.low); set(r.mid.gain, pad.mid); set(r.high.gain, pad.high);
+  set(r.lp.frequency, pad.lowpass); set(r.hp.frequency, pad.highpass); set(r.pan.pan, pad.pan);
+  set(r.rev.gain, pad.reverb); set(r.del.gain, pad.delay);
+  for (const v of r.voices) { v.el.playbackRate = pad.speed; v.el.preservesPitch = pad.keepPitch; v.el.loop = pad.loop; }
+}
+function dropChain(id) {
+  const r = rt.get(id); if (!r) return;
+  r.voices.slice().forEach(v => removeVoice(v));
+  ['input','hp','low','mid','high','lp','vol','pan','rev','del'].forEach(k => r[k].disconnect());
+  rt.delete(id);
+}
+
+function startVoice(pad) {
+  const r = chainFor(pad);
+  const video = isVideoFile(pad.fileType, pad.fileName);
+  const el = document.createElement(video ? 'video' : 'audio');
+  el.src = urlFor(pad.fileId); el.loop = pad.loop; el.playbackRate = pad.speed; el.preservesPitch = pad.keepPitch;
+  el.playsInline = true; el.preload = 'auto';
+  $('#mediaHost').appendChild(el);
+  const src = ctx.createMediaElementSource(el);
+  const g = ctx.createGain(); g.gain.value = pad.fadeIn > 0 ? 0 : 1;
+  src.connect(g).connect(r.input);
+  const v = { el, src, g, pad, video, stopping: false };
+  r.voices.push(v);
+  if (video) Stage.show(v);
+  el.addEventListener('ended', () => removeVoice(v));
+  el.addEventListener('error', () => { toast('เล่นไฟล์ไม่ได้: ' + (pad.fileName || pad.name)); removeVoice(v); });
+  el.play().then(() => {
+    if (pad.fadeIn > 0 && !v.stopping) { const t = ctx.currentTime; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + pad.fadeIn); }
+    if (video && Stage.current === v) Stage.fadeIn(pad.fadeIn);
+  }).catch(() => {});
+}
+function stopVoice(v, fade) {
+  if (v.removed) return;
+  const f = fade == null ? v.pad.fadeOut : fade;
+  if (v.stopping && f > 0) return;
+  v.stopping = true;
+  const t = ctx.currentTime, p = v.g.gain;
+  p.cancelScheduledValues(t); p.setValueAtTime(p.value, t);
+  const dur = Math.max(f, 0.02);
+  p.linearRampToValueAtTime(0, t + dur);
+  if (v.video && Stage.current === v) Stage.fadeOut(dur);
+  clearTimeout(v.timer); v.timer = setTimeout(() => removeVoice(v), dur * 1000 + 40);
+}
+function removeVoice(v) {
+  if (v.removed) return; v.removed = true; clearTimeout(v.timer);
+  try { v.el.pause(); } catch (e) {}
+  v.src.disconnect(); v.g.disconnect(); v.el.removeAttribute('src'); v.el.load(); v.el.remove();
+  const r = rt.get(v.pad.id); if (r) r.voices = r.voices.filter(x => x !== v);
+  if (Stage.current === v) Stage.clear();
+}
+const liveVoices = pad => { const r = rt.get(pad.id); return r ? r.voices.filter(v => !v.stopping) : []; };
+
+function trigger(pad, down) {
+  if (!pad.fileId || !files.has(pad.fileId)) { if (down) pickFileFor(pad); return; }
+  ensureAudio();
+  const live = liveVoices(pad);
+  switch (pad.mode) {
+    case 'restart': if (!down) return; live.forEach(v => stopVoice(v, 0)); startVoice(pad); break;
+    case 'toggle': if (!down) return; if (live.length) live.forEach(v => stopVoice(v)); else startVoice(pad); break;
+    case 'overlap': if (!down) return; startVoice(pad); break;
+    case 'hold': if (down) { if (!live.length) startVoice(pad); } else live.forEach(v => stopVoice(v)); break;
+  }
+}
+function stopAll(fade) {
+  if (!ctx) return;
+  for (const r of rt.values()) r.voices.slice().forEach(v => stopVoice(v, fade == null ? 0 : fade));
+}
+
+/* ================= stage output (projector window) ================= */
+const Stage = {
+  win: null, current: null, stream: null,
+  targets() {
+    const list = [{ video: $('#pvVideo'), fade: $('#pvFade'), master: $('#pvMaster'), black: $('#pvBlack') }];
+    if (this.win && !this.win.closed) { const d = this.win.document; list.push({ video: d.getElementById('v'), fade: d.getElementById('fade'), master: d.getElementById('master'), black: d.getElementById('black') }); }
+    return list.filter(t => t.video);
+  },
+  open() {
+    if (this.win && !this.win.closed) { this.win.focus(); return; }
+    const w = window.open('', 'stage-output', 'width=960,height=540');
+    if (!w) { toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาตป๊อปอัป'); return; }
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Stage Output</title><style>' +
+      'html,body{margin:0;height:100%;background:#000;overflow:hidden}body{cursor:none}' +
+      '.l{position:absolute;inset:0}video{width:100%;height:100%;object-fit:contain}' +
+      '#black{position:absolute;inset:0;background:#000;opacity:0;transition:opacity 1s}' +
+      '#hint{position:absolute;left:14px;bottom:12px;color:#777;font:14px sans-serif;transition:opacity 1.5s}' +
+      '</style></head><body><div id="master" class="l"><div id="fade" class="l"><video id="v" autoplay muted playsinline></video></div></div>' +
+      '<div id="black"></div><div id="hint">ลากหน้าต่างนี้ไปจอโปรเจกเตอร์ แล้วดับเบิลคลิก (หรือกด F) เพื่อเต็มจอ</div></body></html>');
+    w.document.close();
+    const fs = () => { const d = w.document; if (d.fullscreenElement) d.exitFullscreen(); else d.documentElement.requestFullscreen().catch(() => {}); };
+    w.document.addEventListener('dblclick', fs);
+    w.document.addEventListener('keydown', e => { if (e.code === 'KeyF') fs(); else forwardKey(e, true); });
+    w.document.addEventListener('keyup', e => forwardKey(e, false));
+    setTimeout(() => { const hEl = w.document.getElementById('hint'); if (hEl) hEl.style.opacity = 0; }, 6000);
+    this.win = w;
+    this.attach(); applyVideoFx(); renderVideoTab();
+    toast('เปิดจอวิดีโอแล้ว ลากไปจอที่สองแล้วดับเบิลคลิกเพื่อเต็มจอ');
+  },
+  close() { if (this.win && !this.win.closed) this.win.close(); this.win = null; renderVideoTab(); },
+  show(v) {
+    this.current = v; this.stream = null; this.attach();
+    const grab = () => {
+      if (this.current !== v) return;
+      try { this.stream = v.el.captureStream ? v.el.captureStream() : v.el.mozCaptureStream(); } catch (e) { this.stream = null; }
+      this.attach();
+    };
+    v.el.addEventListener('playing', grab, { once: true });
+  },
+  attach() {
+    for (const t of this.targets()) {
+      if (t.video.srcObject !== this.stream) t.video.srcObject = this.stream;
+      if (this.stream) t.video.play().catch(() => {});
+    }
+  },
+  setFade(opacity, secs) { for (const t of this.targets()) { t.fade.style.transition = `opacity ${secs}s linear`; t.fade.style.opacity = opacity; } },
+  fadeIn(secs) { this.setFade(0, 0); requestAnimationFrame(() => this.setFade(1, secs || 0)); },
+  fadeOut(secs) { this.setFade(0, secs); },
+  clear() { this.current = null; this.stream = null; this.attach(); this.setFade(1, 0); },
+};
+function applyVideoFx() {
+  const v = state.video;
+  const filter = `brightness(${v.brightness}%) contrast(${v.contrast}%) saturate(${v.saturate}%) hue-rotate(${v.hue}deg) blur(${v.blur}px)`;
+  for (const t of Stage.targets()) { t.video.style.filter = filter; t.master.style.opacity = v.opacity / 100; t.black.style.opacity = v.blackout ? 1 : 0; }
+}
+
+/* ================= board UI ================= */
+const padEls = new Map();
+function renderBoard() {
+  const board = $('#board'); board.textContent = ''; padEls.clear();
+  state.pads.forEach(pad => {
+    const e = h('div', 'pad'); e.style.setProperty('--c', pad.color);
+    const empty = !pad.fileId;
+    e.classList.toggle('empty', empty); e.classList.toggle('selected', pad.id === selectedId);
+    if (pad.key) e.appendChild(h('div', 'key', keyLabel(pad.key)));
+    const gear = h('button', 'gear', '⚙'); gear.title = 'แก้ไข pad';
+    gear.addEventListener('pointerdown', ev => ev.stopPropagation());
+    gear.addEventListener('click', ev => { ev.stopPropagation(); select(pad.id); });
+    e.appendChild(gear);
+    e.appendChild(h('div', 'name', empty ? 'ว่าง · คลิกหรือลากไฟล์มาวาง' : (pad.name || pad.fileName)));
+    if (!empty) {
+      const meta = h('div', 'meta');
+      const modeTxt = { restart: '↻ เริ่มใหม่', toggle: '⏯ เล่น/หยุด', overlap: '⧉ ซ้อน', hold: '✋ กดค้าง' }[pad.mode];
+      meta.appendChild(h('span', '', (isVideoFile(pad.fileType, pad.fileName) ? '🎬 ' : '🎵 ') + modeTxt + (pad.loop ? ' · ∞' : '')));
+      meta.appendChild(h('span', 'time', ''));
+      e.appendChild(meta);
+    }
+    const bar = h('div', 'bar'); e.appendChild(bar);
+    e.addEventListener('pointerdown', ev => { if (ev.button !== 0) return; e.setPointerCapture(ev.pointerId); trigger(pad, true); });
+    e.addEventListener('pointerup', ev => { if (ev.button !== 0) return; trigger(pad, false); });
+    e.addEventListener('pointercancel', () => trigger(pad, false));
+    e.addEventListener('contextmenu', ev => { ev.preventDefault(); select(pad.id); });
+    e.addEventListener('dragover', ev => { ev.preventDefault(); ev.stopPropagation(); e.classList.add('dragover'); });
+    e.addEventListener('dragleave', () => e.classList.remove('dragover'));
+    e.addEventListener('drop', ev => {
+      ev.preventDefault(); ev.stopPropagation(); e.classList.remove('dragover'); hideDropAll();
+      const list = [...ev.dataTransfer.files].filter(f => /^(audio|video)/.test(f.type) || VIDEO_EXT.test(f.name) || !f.type);
+      if (list.length) assignFile(pad, list[0]).then(() => list.length > 1 && addFiles(list.slice(1)));
+    });
+    board.appendChild(e);
+    padEls.set(pad.id, { e, bar, time: e.querySelector('.time') });
+  });
+}
+function select(id) { selectedId = id; showTab('pad'); renderBoard(); renderPadTab(); }
+
+async function assignFile(pad, file) {
+  const id = uid();
+  files.set(id, file);
+  try { await DB.put('files', id, file); } catch (e) { toast('บันทึกไฟล์ลงเครื่องไม่ได้ (พื้นที่ไม่พอ?) ใช้ได้จนกว่าจะปิดแอป', 4000); }
+  dropChain(pad.id);
+  pad.fileId = id; pad.fileName = file.name; pad.fileType = file.type;
+  if (!pad.name) pad.name = file.name.replace(/\.[^.]+$/, '');
+  if (!pad.key) pad.key = freeKey();
+  save(); gcFiles(); renderBoard(); if (pad.id === selectedId) renderPadTab();
+}
+async function addFiles(list) {
+  for (const f of list) {
+    let pad = state.pads.find(p => !p.fileId);
+    if (!pad) { pad = newPad(state.pads.length); state.pads.push(pad); }
+    pad.key = pad.key || freeKey();
+    await assignFile(pad, f);
+  }
+  toast(`เพิ่ม ${list.length} ไฟล์แล้ว`);
+}
+let pickTarget = null;
+function pickFileFor(pad) { pickTarget = pad; $('#filePick').value = ''; $('#filePick').click(); }
+$('#filePick').addEventListener('change', e => { const f = e.target.files[0]; if (f && pickTarget) assignFile(pickTarget, f); });
+$('#filePickMulti').addEventListener('change', e => { const l = [...e.target.files]; if (l.length) addFiles(l); });
+$('#btnAddFiles').onclick = () => { $('#filePickMulti').value = ''; $('#filePickMulti').click(); };
+$('#btnAddPad').onclick = () => { const p = newPad(state.pads.length); p.key = freeKey(); state.pads.push(p); save(); select(p.id); };
+
+// Drop anywhere on the window → fill empty pads
+let dragDepth = 0;
+function hideDropAll() { dragDepth = 0; $('#dropAll').classList.remove('show'); }
+window.addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { dragDepth++; $('#dropAll').classList.add('show'); } });
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) hideDropAll(); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); hideDropAll(); const l = [...e.dataTransfer.files]; if (l.length) addFiles(l); });
+
+/* ================= side panel ================= */
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['pad', 'master', 'video'].forEach(t => $('#tab-' + t).hidden = t !== name);
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+const pct = v => Math.round(v * 100) + '%';
+const db = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
+const sec = v => v.toFixed(1) + ' s';
+const hz = v => v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : Math.round(v) + ' Hz';
+
+// Range slider row. Double-click resets to default.
+function slider(parent, obj, k, label, opt, onChange) {
+  const row = h('div', 'row'); const lab = h('label', '', label); const val = h('span', 'val');
+  const inp = document.createElement('input'); inp.type = 'range';
+  const toV = x => opt.log ? opt.min * Math.pow(opt.max / opt.min, x / 1000) : x;
+  const toX = v => opt.log ? Math.round(1000 * Math.log(v / opt.min) / Math.log(opt.max / opt.min)) : v;
+  if (opt.log) { inp.min = 0; inp.max = 1000; inp.step = 1; } else { inp.min = opt.min; inp.max = opt.max; inp.step = opt.step; }
+  inp.value = toX(obj[k]);
+  const upd = () => { val.textContent = opt.fmt(obj[k]); onChange(); };
+  inp.addEventListener('input', () => { obj[k] = toV(+inp.value); upd(); });
+  inp.addEventListener('dblclick', () => { obj[k] = opt.def; inp.value = toX(opt.def); upd(); });
+  inp.title = 'ดับเบิลคลิกเพื่อรีเซ็ต';
+  val.textContent = opt.fmt(obj[k]);
+  row.append(lab, inp, val); parent.appendChild(row);
+}
+function checkbox(parent, obj, k, label, onChange) {
+  const l = h('label', 'check'); const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!obj[k];
+  c.addEventListener('change', () => { obj[k] = c.checked; onChange(); c.blur(); });
+  l.append(c, document.createTextNode(label)); parent.appendChild(l);
+}
+
+function renderPadTab() {
+  const root = $('#tab-pad'); root.textContent = '';
+  const pad = state.pads.find(p => p.id === selectedId);
+  if (!pad) {
+    root.appendChild(h('h3', '', 'แก้ไข pad'));
+    root.appendChild(h('p', 'muted', 'กด ⚙ หรือคลิกขวาที่ pad เพื่อเลือกมาแก้ไข ปรับค่าได้ขณะเสียงกำลังเล่น'));
+    root.appendChild(h('h3', '', 'คีย์ลัด'));
+    const tips = h('div', 'muted');
+    tips.innerHTML = '<kbd>Space</kbd> เฟดออกทุกเสียง<br><kbd>Esc</kbd> หยุดทุกเสียงทันที<br>ปุ่มบน pad = คีย์ลัดของ pad นั้น (ใช้ได้แม้คีย์บอร์ดเป็นภาษาไทย)<br>ดับเบิลคลิกที่แถบเลื่อน = รีเซ็ตค่า';
+    root.appendChild(tips);
+    return;
+  }
+  const changed = () => { applyPad(pad); save(); };
+  const changedBoard = () => { changed(); renderBoard(); };
+
+  root.appendChild(h('h3', '', 'ไฟล์'));
+  const fi = h('div', 'fileinfo');
+  if (pad.fileId) { fi.textContent = (isVideoFile(pad.fileType, pad.fileName) ? '🎬 ' : '🎵 ') + pad.fileName; const sz = files.get(pad.fileId); if (sz) { fi.appendChild(h('br')); fi.appendChild(h('small', '', (sz.size / 1048576).toFixed(1) + ' MB')); } }
+  else fi.textContent = 'ยังไม่มีไฟล์';
+  root.appendChild(fi);
+  const b1 = h('div', 'btns');
+  const bPick = h('button', 'primary', pad.fileId ? 'เปลี่ยนไฟล์' : 'เลือกไฟล์'); bPick.onclick = () => pickFileFor(pad);
+  const bPlay = h('button', '', '▶ ทดลอง'); bPlay.onclick = () => trigger(pad, true);
+  const bStop = h('button', '', '■ หยุด'); bStop.onclick = () => liveVoices(pad).forEach(v => stopVoice(v));
+  b1.append(bPick, bPlay, bStop); root.appendChild(b1);
+
+  root.appendChild(h('h3', '', 'การเล่น'));
+  const rName = h('div', 'row full'); const iName = document.createElement('input'); iName.type = 'text'; iName.value = pad.name;
+  iName.oninput = () => { pad.name = iName.value; save(); const pe = padEls.get(pad.id); if (pe) pe.e.querySelector('.name').textContent = pad.name || pad.fileName || 'ว่าง'; };
+  rName.append(h('label', '', 'ชื่อ'), iName); root.appendChild(rName);
+
+  const rKey = h('div', 'row full'); const iKey = document.createElement('input'); iKey.type = 'text'; iKey.readOnly = true; iKey.dataset.capture = '1';
+  iKey.value = keyLabel(pad.key) || '—'; iKey.placeholder = 'คลิกแล้วกดปุ่ม';
+  iKey.onfocus = () => { iKey.value = 'กดปุ่มที่ต้องการ…'; };
+  iKey.onblur = () => { iKey.value = keyLabel(pad.key) || '—'; };
+  iKey.onkeydown = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.code === 'Backspace' || e.code === 'Delete') pad.key = '';
+    else if (e.code === 'Escape') { iKey.blur(); return; }
+    else if (RESERVED.has(e.code)) { toast('ปุ่มนี้สงวนไว้ใช้ควบคุมรวม'); return; }
+    else { state.pads.forEach(p => { if (p !== pad && p.key === e.code) p.key = ''; }); pad.key = e.code; }
+    save(); iKey.blur(); renderBoard();
+  };
+  rKey.append(h('label', '', 'คีย์ลัด'), iKey); root.appendChild(rKey);
+
+  const rMode = h('div', 'row full'); const sMode = document.createElement('select');
+  [['restart', 'กดแล้วเริ่มใหม่'], ['toggle', 'กดเล่น / กดอีกทีหยุด'], ['overlap', 'ซ้อนกันได้ (เช่นเสียงปืน)'], ['hold', 'กดค้างถึงดัง']].forEach(([v, t]) => { const o = h('option', '', t); o.value = v; sMode.appendChild(o); });
+  sMode.value = pad.mode; sMode.onchange = () => { pad.mode = sMode.value; sMode.blur(); changedBoard(); };
+  rMode.append(h('label', '', 'โหมด'), sMode); root.appendChild(rMode);
+
+  const rCol = h('div', 'row full'); const iCol = document.createElement('input'); iCol.type = 'color'; iCol.value = pad.color;
+  iCol.oninput = () => { pad.color = iCol.value; save(); const pe = padEls.get(pad.id); if (pe) pe.e.style.setProperty('--c', pad.color); };
+  rCol.append(h('label', '', 'สี'), iCol); root.appendChild(rCol);
+  checkbox(root, pad, 'loop', 'วนลูป', changedBoard);
+
+  root.appendChild(h('h3', '', 'เสียง'));
+  slider(root, pad, 'volume', 'ความดัง', { min: 0, max: 2, step: 0.01, def: 1, fmt: pct }, changed);
+  slider(root, pad, 'pan', 'ซ้าย / ขวา', { min: -1, max: 1, step: 0.01, def: 0, fmt: v => Math.abs(v) < 0.01 ? 'กลาง' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100) }, changed);
+  slider(root, pad, 'speed', 'ความเร็ว', { min: 0.25, max: 2, step: 0.01, def: 1, fmt: v => v.toFixed(2) + '×' }, changed);
+  checkbox(root, pad, 'keepPitch', 'คงระดับเสียง (ไม่ติ๊ก = เร็วขึ้นเสียงสูงขึ้น)', changed);
+  slider(root, pad, 'fadeIn', 'เฟดเข้า', { min: 0, max: 10, step: 0.1, def: 0, fmt: sec }, changed);
+  slider(root, pad, 'fadeOut', 'เฟดออก', { min: 0, max: 10, step: 0.1, def: 0, fmt: sec }, changed);
+
+  root.appendChild(h('h3', '', 'EQ / ฟิลเตอร์'));
+  slider(root, pad, 'low', 'เสียงทุ้ม', { min: -24, max: 24, step: 0.5, def: 0, fmt: db }, changed);
+  slider(root, pad, 'mid', 'เสียงกลาง', { min: -24, max: 24, step: 0.5, def: 0, fmt: db }, changed);
+  slider(root, pad, 'high', 'เสียงแหลม', { min: -24, max: 24, step: 0.5, def: 0, fmt: db }, changed);
+  slider(root, pad, 'highpass', 'ตัดทุ้ม (HPF)', { min: 20, max: 5000, log: true, def: 20, fmt: hz }, changed);
+  slider(root, pad, 'lowpass', 'ตัดแหลม (LPF)', { min: 200, max: 20000, log: true, def: 20000, fmt: hz }, changed);
+  root.appendChild(h('p', 'muted', 'เคล็ดลับ: ตัดแหลมลงเหลือ ~800 Hz = เสียงลอดกำแพง/ห้องข้างๆ, ตัดทุ้ม ~1.5 kHz + ตัดแหลม ~4 kHz = เสียงวิทยุ/โทรศัพท์'));
+
+  root.appendChild(h('h3', '', 'เอฟเฟกต์'));
+  slider(root, pad, 'reverb', 'เสียงก้อง', { min: 0, max: 1.5, step: 0.01, def: 0, fmt: pct }, changed);
+  slider(root, pad, 'delay', 'เสียงสะท้อน', { min: 0, max: 1, step: 0.01, def: 0, fmt: pct }, changed);
+  root.appendChild(h('p', 'muted', 'ขนาดห้องของเสียงก้อง และจังหวะเสียงสะท้อน ตั้งได้ในแท็บ Master'));
+
+  root.appendChild(h('h3', '', 'จัดการ'));
+  const b2 = h('div', 'btns');
+  const bReset = h('button', 'small', 'รีเซ็ตเสียง/เอฟเฟกต์');
+  bReset.onclick = () => { ['volume','speed','keepPitch','fadeIn','fadeOut','pan','low','mid','high','lowpass','highpass','reverb','delay'].forEach(k => pad[k] = PAD_DEFAULTS[k]); changed(); renderPadTab(); };
+  const bClear = h('button', 'small', 'ล้างไฟล์ออก');
+  bClear.onclick = () => { dropChain(pad.id); pad.fileId = null; pad.fileName = ''; pad.fileType = ''; pad.name = ''; save(); gcFiles(); renderBoard(); renderPadTab(); };
+  const bDup = h('button', 'small', 'ทำสำเนา');
+  bDup.onclick = () => { const c = Object.assign({}, pad, { id: uid(), key: freeKey() }); state.pads.splice(state.pads.indexOf(pad) + 1, 0, c); save(); select(c.id); };
+  const bDel = h('button', 'small', 'ลบ pad');
+  bDel.onclick = () => { if (!confirm('ลบ pad นี้?')) return; dropChain(pad.id); state.pads = state.pads.filter(p => p !== pad); selectedId = null; save(); gcFiles(); renderBoard(); renderPadTab(); };
+  const bLeft = h('button', 'small', '◀ ย้าย'); bLeft.onclick = () => movePad(pad, -1);
+  const bRight = h('button', 'small', 'ย้าย ▶'); bRight.onclick = () => movePad(pad, 1);
+  b2.append(bLeft, bRight, bDup, bReset, bClear, bDel); root.appendChild(b2);
+}
+function movePad(pad, d) { const i = state.pads.indexOf(pad), j = i + d; if (j < 0 || j >= state.pads.length) return; [state.pads[i], state.pads[j]] = [state.pads[j], state.pads[i]]; save(); renderBoard(); }
+
+function renderMasterTab() {
+  const root = $('#tab-master'); root.textContent = ''; const m = state.master;
+  const ch = () => { applyMaster(); save(); };
+  root.appendChild(h('h3', '', 'เสียงรวม'));
+  slider(root, m, 'volume', 'ความดังรวม', { min: 0, max: 1.5, step: 0.01, def: 1, fmt: pct }, ch);
+  root.appendChild(h('p', 'muted', 'มีลิมิตเตอร์กันเสียงแตกอยู่ที่ปลายทางเสมอ'));
+  root.appendChild(h('h3', '', 'EQ รวม'));
+  slider(root, m, 'low', 'เสียงทุ้ม', { min: -18, max: 18, step: 0.5, def: 0, fmt: db }, ch);
+  slider(root, m, 'mid', 'เสียงกลาง', { min: -18, max: 18, step: 0.5, def: 0, fmt: db }, ch);
+  slider(root, m, 'high', 'เสียงแหลม', { min: -18, max: 18, step: 0.5, def: 0, fmt: db }, ch);
+  root.appendChild(h('h3', '', 'เสียงก้อง (Reverb)'));
+  slider(root, m, 'reverbSize', 'ขนาดห้อง', { min: 0.3, max: 6, step: 0.1, def: 2.5, fmt: sec }, () => { scheduleImpulse(); save(); });
+  root.appendChild(h('h3', '', 'เสียงสะท้อน (Delay)'));
+  slider(root, m, 'delayTime', 'ระยะห่าง', { min: 0.05, max: 1.5, step: 0.01, def: 0.35, fmt: sec }, ch);
+  slider(root, m, 'delayFeedback', 'จำนวนรอบ', { min: 0, max: 0.9, step: 0.01, def: 0.35, fmt: pct }, ch);
+  root.appendChild(h('h3', '', 'ข้อมูลโชว์'));
+  const info = h('p', 'muted'); root.appendChild(info);
+  let total = 0; files.forEach(b => total += b.size);
+  info.textContent = `${state.pads.length} pads · ไฟล์ ${files.size} ไฟล์ · ${(total / 1048576).toFixed(1)} MB เก็บไว้ในเครื่องนี้`;
+  const b = h('div', 'btns'); const bNew = h('button', 'small', 'เริ่มโชว์ใหม่ (ล้างทั้งหมด)');
+  bNew.onclick = async () => { if (!confirm('ล้าง pad และไฟล์ทั้งหมดในเครื่องนี้? (ควรบันทึกโชว์ไว้ก่อน)')) return; await loadShow(defaultState(), new Map(), true); };
+  b.appendChild(bNew); root.appendChild(b);
+}
+
+function renderVideoTab() {
+  const root = $('#tab-video'); root.textContent = ''; const v = state.video;
+  const ch = () => { applyVideoFx(); save(); };
+  root.appendChild(h('h3', '', 'จอวิดีโอ'));
+  const open = Stage.win && !Stage.win.closed;
+  const b = h('div', 'btns');
+  const bOpen = h('button', open ? '' : 'primary', open ? 'โฟกัสหน้าต่างวิดีโอ' : '🖥️ เปิดหน้าต่างวิดีโอ'); bOpen.onclick = () => Stage.open();
+  b.appendChild(bOpen);
+  if (open) { const bClose = h('button', '', 'ปิด'); bClose.onclick = () => Stage.close(); b.appendChild(bClose); }
+  root.appendChild(b);
+  root.appendChild(h('p', 'muted', 'ลากหน้าต่างวิดีโอไปที่จอโปรเจกเตอร์ แล้วดับเบิลคลิกหรือกด F ในหน้าต่างนั้นเพื่อเต็มจอ เสียงของวิดีโอออกทางแอปนี้และผ่าน EQ/เอฟเฟกต์ตามปกติ'));
+  root.appendChild(h('h3', '', 'พรีวิว'));
+  const pv = h('div', 'preview');
+  pv.innerHTML = '<div id="pvMaster" class="layer"><div id="pvFade" class="layer"><video id="pvVideo" autoplay muted playsinline></video></div></div><div id="pvBlack" class="black"></div>';
+  root.appendChild(pv);
+  const bb = h('div', 'btns');
+  const bBlack = h('button', v.blackout ? 'on' : '', v.blackout ? '● จอดำอยู่ (คลิกเพื่อเปิดภาพ)' : '◐ จอดำ (Blackout)');
+  bBlack.onclick = () => { v.blackout = !v.blackout; ch(); renderVideoTab(); };
+  bb.appendChild(bBlack); root.appendChild(bb);
+  root.appendChild(h('h3', '', 'ปรับภาพ'));
+  slider(root, v, 'opacity', 'ความเข้มภาพ', { min: 0, max: 100, step: 1, def: 100, fmt: v => v + '%' }, ch);
+  slider(root, v, 'brightness', 'ความสว่าง', { min: 0, max: 200, step: 1, def: 100, fmt: v => v + '%' }, ch);
+  slider(root, v, 'contrast', 'คอนทราสต์', { min: 0, max: 200, step: 1, def: 100, fmt: v => v + '%' }, ch);
+  slider(root, v, 'saturate', 'ความสดของสี', { min: 0, max: 300, step: 1, def: 100, fmt: v => v + '%' }, ch);
+  slider(root, v, 'hue', 'โทนสี', { min: -180, max: 180, step: 1, def: 0, fmt: v => v + '°' }, ch);
+  slider(root, v, 'blur', 'เบลอ', { min: 0, max: 20, step: 0.5, def: 0, fmt: v => v + ' px' }, ch);
+  Stage.attach(); applyVideoFx();
+  if (!Stage.current) Stage.setFade(1, 0);
+}
+
+/* ================= keyboard ================= */
+const held = new Set();
+function forwardKey(e, down) {
+  const t = e.target;
+  if (t && (t.dataset && t.dataset.capture || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number')))) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (down && e.code === 'Escape') { e.preventDefault(); stopAll(0); return; }
+  if (down && e.code === 'Space') { e.preventDefault(); stopAll(2); return; }
+  const pad = state.pads.find(p => p.key === e.code); if (!pad) return;
+  e.preventDefault();
+  if (down) { if (held.has(e.code)) return; held.add(e.code); trigger(pad, true); }
+  else { held.delete(e.code); trigger(pad, false); }
+}
+window.addEventListener('keydown', e => forwardKey(e, true));
+window.addEventListener('keyup', e => forwardKey(e, false));
+window.addEventListener('blur', () => held.clear());
+
+$('#btnStopAll').onclick = () => stopAll(0);
+$('#btnFadeAll').onclick = () => stopAll(2);
+$('#btnStage').onclick = () => { showTab('video'); Stage.open(); };
+
+/* ================= show file export / import ================= */
+// Format: "SSB1" + uint32 header length + JSON header + raw file bytes, back to back.
+async function exportShow() {
+  const used = [...new Set(state.pads.map(p => p.fileId).filter(id => id && files.has(id)))];
+  const meta = used.map(id => { const b = files.get(id); return { id, size: b.size, type: b.type }; });
+  const header = new TextEncoder().encode(JSON.stringify({ app: 'stage-soundboard', version: 1, state, files: meta }));
+  const len = new Uint8Array(4); new DataView(len.buffer).setUint32(0, header.length, true);
+  const blob = new Blob([new TextEncoder().encode('SSB1'), len, header, ...used.map(id => files.get(id))], { type: 'application/octet-stream' });
+  const d = new Date(), name = `show-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.ssbshow`;
+  if (window.ssbNative && window.ssbNative.saveShow) { await window.ssbNative.saveShow(name, blob); return; }
+  const a = h('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  toast('บันทึกโชว์แล้ว: ' + name + ' (เอาไฟล์นี้ไปเปิดเครื่องอื่นได้)', 4000);
+}
+async function importShow(file) {
+  try {
+    const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    if (new TextDecoder().decode(head.slice(0, 4)) !== 'SSB1') throw new Error('ไม่ใช่ไฟล์โชว์');
+    const len = new DataView(head.buffer).getUint32(4, true);
+    const hdr = JSON.parse(new TextDecoder().decode(await file.slice(8, 8 + len).arrayBuffer()));
+    let off = 8 + len; const map = new Map();
+    for (const f of hdr.files) { const pad = hdr.state.pads.find(p => p.fileId === f.id); map.set(f.id, new File([file.slice(off, off + f.size)], pad ? pad.fileName : f.id, { type: f.type })); off += f.size; }
+    if (!confirm(`เปิดโชว์นี้ (${hdr.state.pads.length} pads)? โชว์ปัจจุบันในเครื่องจะถูกแทนที่`)) return;
+    await loadShow(hdr.state, map, true);
+    toast('เปิดโชว์แล้ว');
+  } catch (e) { alert('เปิดไฟล์โชว์ไม่ได้: ' + e.message); }
+}
+$('#btnExport').onclick = () => exportShow();
+$('#btnImport').onclick = () => { $('#showPick').value = ''; $('#showPick').click(); };
+$('#showPick').addEventListener('change', e => { const f = e.target.files[0]; if (f) importShow(f); });
+
+function defaultState() {
+  const s = { pads: [], master: { ...MASTER_DEFAULTS }, video: { ...VIDEO_DEFAULTS } };
+  for (let i = 0; i < 12; i++) { const p = newPad(i); p.key = DEFAULT_KEYS[i]; s.pads.push(p); }
+  return s;
+}
+async function loadShow(newState, fileMap, persist) {
+  for (const id of [...rt.keys()]) dropChain(id);
+  urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); files.clear();
+  fileMap.forEach((b, id) => files.set(id, b));
+  newState.pads = newState.pads.map(p => Object.assign({}, PAD_DEFAULTS, p));
+  newState.master = Object.assign({}, MASTER_DEFAULTS, newState.master);
+  newState.video = Object.assign({}, VIDEO_DEFAULTS, newState.video);
+  state = newState; selectedId = null; impulseFor = null;
+  if (ctx) { buildImpulse(); applyMaster(); }
+  if (persist) {
+    try { await DB.clear('files'); for (const [id, b] of files) await DB.put('files', id, b); } catch (e) { toast('บันทึกไฟล์ลงเครื่องไม่ครบ (พื้นที่ไม่พอ?)', 4000); }
+    await DB.put('kv', 'state', state).catch(() => {});
+  }
+  renderAll();
+}
+function renderAll() { renderBoard(); renderPadTab(); renderMasterTab(); renderVideoTab(); applyVideoFx(); }
+
+/* ================= animation loop: progress bars + meter ================= */
+const viz = $('#viz'), vctx = viz.getContext('2d');
+let fbuf, tbuf;
+function frame() {
+  for (const pad of state.pads) {
+    const pe = padEls.get(pad.id); if (!pe) continue;
+    const r = rt.get(pad.id); const v = r && r.voices.length ? r.voices[r.voices.length - 1] : null;
+    const playing = !!v && !v.stopping;
+    if (pe.e.classList.contains('playing') !== playing) pe.e.classList.toggle('playing', playing);
+    if (v && v.el.duration) {
+      pe.bar.style.width = (100 * v.el.currentTime / v.el.duration) + '%';
+      if (pe.time) pe.time.textContent = pad.loop ? fmtTime(v.el.currentTime) : '-' + fmtTime((v.el.duration - v.el.currentTime) / (pad.speed || 1));
+    } else if (pe.bar.style.width !== '0px') { pe.bar.style.width = '0px'; if (pe.time) pe.time.textContent = ''; }
+  }
+  const W = viz.width, H = viz.height; vctx.fillStyle = '#0a0c10'; vctx.fillRect(0, 0, W, H);
+  if (M) {
+    const n = M.analyser.frequencyBinCount; if (!fbuf) { fbuf = new Uint8Array(n); tbuf = new Float32Array(M.analyser.fftSize); }
+    M.analyser.getByteFrequencyData(fbuf); M.analyser.getFloatTimeDomainData(tbuf);
+    let peak = 0; for (let i = 0; i < tbuf.length; i++) peak = Math.max(peak, Math.abs(tbuf[i]));
+    const bars = 48, bw = W / bars;
+    for (let i = 0; i < bars; i++) {
+      const idx = Math.floor(Math.pow(i / bars, 2) * n * 0.7);
+      const val = fbuf[idx] / 255, bh = val * H;
+      vctx.fillStyle = peak > 0.97 ? '#ff4d5e' : `hsl(${210 - val * 120},90%,60%)`;
+      vctx.fillRect(i * bw + 1, H - bh, bw - 2, bh);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ================= boot ================= */
+(async function boot() {
+  const ok = await DB.open();
+  if (!ok) toast('เก็บข้อมูลในเครื่องไม่ได้ จะใช้ได้จนกว่าปิดแอป', 4000);
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  let saved = null; try { saved = await DB.get('kv', 'state'); } catch (e) {}
+  const map = new Map();
+  if (saved) {
+    for (const p of saved.pads) if (p.fileId) { try { const b = await DB.get('files', p.fileId); if (b) map.set(p.fileId, b); else { p.fileId = null; } } catch (e) {} }
+  }
+  await loadShow(saved || defaultState(), map, !saved);
+  requestAnimationFrame(frame);
+})();
+window.addEventListener('beforeunload', () => { if (Stage.win && !Stage.win.closed) Stage.win.close(); });
+</script>
+</body>
+</html>
