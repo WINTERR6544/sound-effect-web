@@ -42,6 +42,8 @@ main{display:grid;grid-template-columns:1fr 360px;min-height:0}
 .pad.playing::before{opacity:.45}
 .pad.dragover{border-color:var(--ok);border-style:dashed}
 .pad .key{position:absolute;top:8px;left:8px;background:#000a;border-radius:6px;padding:2px 7px;font-weight:700;font-size:13px;min-width:24px;text-align:center}
+.pad .stop{position:absolute;top:5px;right:40px;display:none;background:var(--danger);color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:13px;font-weight:700}
+.pad.playing .stop{display:block}
 .pad .gear{position:absolute;top:5px;right:5px;background:#0008;border:none;border-radius:6px;padding:3px 7px;font-size:14px}
 .pad .name{position:relative;font-weight:600;font-size:15px;line-height:1.25;word-break:break-word;max-height:3.8em;overflow:hidden}
 .pad .meta{position:relative;color:#c8ccd6;font-size:11px;margin-top:4px;display:flex;justify-content:space-between;gap:6px}
@@ -97,7 +99,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
       <div id="boardTools">
         <button id="btnAddPad">＋ เพิ่ม pad</button>
         <button id="btnAddFiles">＋ เพิ่มหลายไฟล์</button>
-        <span class="hint">คลิก pad เพื่อเล่น · ⚙ หรือคลิกขวาเพื่อแก้ไข · ลากไฟล์มาวางบน pad ได้</span>
+        <span class="hint">คลิก pad เพื่อเล่น · ■ / Shift+คลิก หยุดเฉพาะ pad · Backspace หยุดอันล่าสุด · ⚙ หรือคลิกขวาเพื่อแก้ไข · ลากไฟล์มาวางบน pad ได้</span>
       </div>
       <div id="board"></div>
     </section>
@@ -265,6 +267,7 @@ function dropChain(id) {
 }
 
 function startVoice(pad) {
+  const ri = recent.indexOf(pad.id); if (ri >= 0) recent.splice(ri, 1); recent.push(pad.id);
   const r = chainFor(pad);
   const video = isVideoFile(pad.fileType, pad.fileName);
   const el = document.createElement(video ? 'video' : 'audio');
@@ -316,6 +319,15 @@ function trigger(pad, down) {
     case 'hold': if (down) { if (!live.length) startVoice(pad); } else live.forEach(v => stopVoice(v)); break;
   }
 }
+// Quick stop of one pad, e.g. a cue fired by mistake.
+function stopPad(pad) { if (ctx) liveVoices(pad).forEach(v => stopVoice(v, 0.1)); }
+function stopLast() {
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const pad = state.pads.find(p => p.id === recent[i]);
+    if (pad && liveVoices(pad).length) { stopPad(pad); toast('หยุด: ' + (pad.name || pad.fileName)); return; }
+  }
+}
+const recent = [];
 function stopAll(fade) {
   if (!ctx) return;
   for (const r of rt.values()) r.voices.slice().forEach(v => stopVoice(v, fade == null ? 0 : fade));
@@ -391,6 +403,10 @@ function renderBoard() {
     gear.addEventListener('pointerdown', ev => ev.stopPropagation());
     gear.addEventListener('click', ev => { ev.stopPropagation(); select(pad.id); });
     e.appendChild(gear);
+    const stopB = h('button', 'stop', '■'); stopB.title = 'หยุดเฉพาะ pad นี้ (Shift+คลิก หรือ Shift+คีย์)';
+    stopB.addEventListener('pointerdown', ev => ev.stopPropagation());
+    stopB.addEventListener('click', ev => { ev.stopPropagation(); stopPad(pad); });
+    e.appendChild(stopB);
     e.appendChild(h('div', 'name', empty ? 'ว่าง · คลิกหรือลากไฟล์มาวาง' : (pad.name || pad.fileName)));
     if (!empty) {
       const meta = h('div', 'meta');
@@ -400,8 +416,8 @@ function renderBoard() {
       e.appendChild(meta);
     }
     const bar = h('div', 'bar'); e.appendChild(bar);
-    e.addEventListener('pointerdown', ev => { if (ev.button !== 0) return; e.setPointerCapture(ev.pointerId); trigger(pad, true); });
-    e.addEventListener('pointerup', ev => { if (ev.button !== 0) return; trigger(pad, false); });
+    e.addEventListener('pointerdown', ev => { if (ev.button !== 0) return; if (ev.shiftKey) { stopPad(pad); return; } e.setPointerCapture(ev.pointerId); trigger(pad, true); });
+    e.addEventListener('pointerup', ev => { if (ev.button !== 0 || ev.shiftKey) return; trigger(pad, false); });
     e.addEventListener('pointercancel', () => trigger(pad, false));
     e.addEventListener('contextmenu', ev => { ev.preventDefault(); select(pad.id); });
     e.addEventListener('dragover', ev => { ev.preventDefault(); ev.stopPropagation(); e.classList.add('dragover'); });
@@ -492,7 +508,7 @@ function renderPadTab() {
     root.appendChild(h('p', 'muted', 'กด ⚙ หรือคลิกขวาที่ pad เพื่อเลือกมาแก้ไข ปรับค่าได้ขณะเสียงกำลังเล่น'));
     root.appendChild(h('h3', '', 'คีย์ลัด'));
     const tips = h('div', 'muted');
-    tips.innerHTML = '<kbd>Space</kbd> เฟดออกทุกเสียง<br><kbd>Esc</kbd> หยุดทุกเสียงทันที<br>ปุ่มบน pad = คีย์ลัดของ pad นั้น (ใช้ได้แม้คีย์บอร์ดเป็นภาษาไทย)<br>ดับเบิลคลิกที่แถบเลื่อน = รีเซ็ตค่า';
+    tips.innerHTML = '<kbd>Space</kbd> เฟดออกทุกเสียง<br><kbd>Esc</kbd> หยุดทุกเสียงทันที<br><kbd>Backspace</kbd> หยุดเฉพาะอันที่เพิ่งกดล่าสุด<br><kbd>Shift</kbd>+คีย์ หรือ Shift+คลิก = หยุดเฉพาะ pad นั้น (หรือกด ■ บน pad)<br>ปุ่มบน pad = คีย์ลัดของ pad นั้น (ใช้ได้แม้คีย์บอร์ดเป็นภาษาไทย)<br>ดับเบิลคลิกที่แถบเลื่อน = รีเซ็ตค่า';
     root.appendChild(tips);
     return;
   }
@@ -636,10 +652,12 @@ function forwardKey(e, down) {
   const t = e.target;
   if (t && (t.dataset && t.dataset.capture || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number')))) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (down && e.code === 'Backspace') { e.preventDefault(); stopLast(); return; }
   if (down && e.code === 'Escape') { e.preventDefault(); stopAll(0); return; }
   if (down && e.code === 'Space') { e.preventDefault(); stopAll(2); return; }
   const pad = state.pads.find(p => p.key === e.code); if (!pad) return;
   e.preventDefault();
+  if (down && e.shiftKey) { stopPad(pad); return; }
   if (down) { if (held.has(e.code)) return; held.add(e.code); trigger(pad, true); }
   else { held.delete(e.code); trigger(pad, false); }
 }
