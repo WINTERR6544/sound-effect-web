@@ -613,7 +613,9 @@ function renderMasterTab() {
   info.textContent = `${state.pads.length} pads · ไฟล์ ${files.size} ไฟล์ · ${(total / 1048576).toFixed(1)} MB เก็บไว้ในเครื่องนี้`;
   const b = h('div', 'btns'); const bNew = h('button', 'small', 'เริ่มโชว์ใหม่ (ล้างทั้งหมด)');
   bNew.onclick = async () => { if (!confirm('ล้าง pad และไฟล์ทั้งหมดในเครื่องนี้? (ควรบันทึกโชว์ไว้ก่อน)')) return; await loadShow(defaultState(), new Map(), true); };
-  b.appendChild(bNew); root.appendChild(b);
+  b.appendChild(bNew);
+  if (location.protocol.startsWith('http')) { const bKit = h('button', 'small', 'โหลดชุดเสียงตั้งต้น'); bKit.onclick = () => loadBundledSounds(true); b.appendChild(bKit); }
+  root.appendChild(b);
 }
 
 function renderVideoTab() {
@@ -720,6 +722,34 @@ async function loadShow(newState, fileMap, persist) {
   }
   renderAll();
 }
+// Sound kit shipped with the website: sounds/manifest.json lists files (strings, or objects with pad settings).
+async function loadBundledSounds(ask) {
+  let list;
+  try { const r = await fetch('sounds/manifest.json', { cache: 'no-cache' }); if (!r.ok) return false; list = await r.json(); } catch (e) { return false; }
+  const items = (Array.isArray(list) ? list : (list.pads || [])).map(x => typeof x === 'string' ? { file: x } : x).filter(x => x && x.file);
+  if (!items.length) return false;
+  if (ask && !confirm(`โหลดชุดเสียงตั้งต้น ${items.length} ไฟล์? pad ทั้งหมดในเครื่องนี้จะถูกแทนที่`)) return false;
+  toast('กำลังโหลดชุดเสียง…', 15000);
+  const s = defaultState(); s.pads = []; const map = new Map();
+  for (const it of items) {
+    try {
+      const res = await fetch('sounds/' + it.file.split('/').map(encodeURIComponent).join('/'));
+      if (!res.ok) continue;
+      const blob = await res.blob(), name = it.file.split('/').pop(), id = uid();
+      map.set(id, new File([blob], name, { type: blob.type }));
+      const pad = Object.assign(newPad(s.pads.length), it, { id: uid(), fileId: id, fileName: name, fileType: blob.type });
+      delete pad.file;
+      pad.name = it.name || name.replace(/\.[^.]+$/, '');
+      pad.key = it.key || DEFAULT_KEYS.find(k => !s.pads.some(q => q.key === k)) || '';
+      s.pads.push(pad);
+    } catch (e) {}
+  }
+  if (!map.size) return false;
+  while (s.pads.length < 12) { const p = newPad(s.pads.length); p.key = DEFAULT_KEYS.find(k => !s.pads.some(q => q.key === k)) || ''; s.pads.push(p); }
+  await loadShow(s, map, true);
+  toast(`โหลดชุดเสียงแล้ว ${map.size} ไฟล์`);
+  return true;
+}
 function renderAll() { renderBoard(); renderPadTab(); renderMasterTab(); renderVideoTab(); applyVideoFx(); }
 
 /* ================= animation loop: progress bars + meter ================= */
@@ -762,7 +792,7 @@ function frame() {
   if (saved) {
     for (const p of saved.pads) if (p.fileId) { try { const b = await DB.get('files', p.fileId); if (b) map.set(p.fileId, b); else { p.fileId = null; } } catch (e) {} }
   }
-  await loadShow(saved || defaultState(), map, !saved);
+  if (saved || !(await loadBundledSounds(false))) await loadShow(saved || defaultState(), map, !saved);
   requestAnimationFrame(frame);
 })();
 window.addEventListener('beforeunload', () => { if (Stage.win && !Stage.win.closed) Stage.win.close(); });
