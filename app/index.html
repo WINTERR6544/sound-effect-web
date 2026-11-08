@@ -731,7 +731,8 @@ async function loadBundledSounds(ask) {
   if (ask && !confirm(`โหลดชุดเสียงตั้งต้น ${items.length} ไฟล์? pad ทั้งหมดในเครื่องนี้จะถูกแทนที่`)) return false;
   toast('กำลังโหลดชุดเสียง…', 15000);
   const s = defaultState(); s.pads = []; const map = new Map();
-  for (const it of items) {
+  for (const [n, it] of items.entries()) {
+    toast(`กำลังโหลดชุดเสียง ${n + 1}/${items.length}…`, 60000);
     try {
       const res = await fetch('sounds/' + it.file.split('/').map(encodeURIComponent).join('/'));
       if (!res.ok) continue;
