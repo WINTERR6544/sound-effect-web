@@ -746,6 +746,8 @@ async function loadBundledSounds(ask) {
   }
   if (!map.size) return false;
   while (s.pads.length < 12) { const p = newPad(s.pads.length); p.key = DEFAULT_KEYS.find(k => !s.pads.some(q => q.key === k)) || ''; s.pads.push(p); }
+  if (list.master) s.master = list.master;
+  if (list.video) s.video = list.video;
   await loadShow(s, map, true);
   toast(`โหลดชุดเสียงแล้ว ${map.size} ไฟล์`);
   return true;
