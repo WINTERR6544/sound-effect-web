@@ -42,8 +42,11 @@ main{display:grid;grid-template-columns:1fr 360px;min-height:0}
 .pad.playing::before{opacity:.45}
 .pad.dragover{border-color:var(--ok);border-style:dashed}
 .pad .key{position:absolute;top:8px;left:8px;background:#000a;border-radius:6px;padding:2px 7px;font-weight:700;font-size:13px;min-width:24px;text-align:center}
-.pad .stop{position:absolute;top:5px;right:40px;display:none;background:var(--danger);color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:13px;font-weight:700}
+.pad .stop{position:absolute;top:36px;left:8px;display:none;background:var(--danger);color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:13px;font-weight:700}
 .pad.playing .stop{display:block}
+.pad .grip{position:absolute;top:5px;left:50%;transform:translateX(-50%);background:#0008;border-radius:6px;padding:1px 10px;font-size:15px;cursor:grab;color:#cfd3dc;line-height:22px}
+.pad .grip:active{cursor:grabbing}
+.pad.dragging{opacity:.35}
 .pad .gear{position:absolute;top:5px;right:5px;background:#0008;border:none;border-radius:6px;padding:3px 7px;font-size:14px}
 .pad .name{position:relative;font-weight:600;font-size:15px;line-height:1.25;word-break:break-word;max-height:3.8em;overflow:hidden}
 .pad .meta{position:relative;color:#c8ccd6;font-size:11px;margin-top:4px;display:flex;justify-content:space-between;gap:6px}
@@ -99,7 +102,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
       <div id="boardTools">
         <button id="btnAddPad">＋ เพิ่ม pad</button>
         <button id="btnAddFiles">＋ เพิ่มหลายไฟล์</button>
-        <span class="hint">คลิก pad เพื่อเล่น · ■ / Shift+คลิก หยุดเฉพาะ pad · Backspace หยุดอันล่าสุด · ⚙ หรือคลิกขวาเพื่อแก้ไข · ลากไฟล์มาวางบน pad ได้</span>
+        <span class="hint">คลิก pad เพื่อเล่น · ลาก ⠿ ไปวางบน pad อื่นเพื่อสลับ · ■ / Shift+คลิก หยุดเฉพาะ pad · Backspace หยุดอันล่าสุด · ⚙ หรือคลิกขวาเพื่อแก้ไข · ลากไฟล์มาวางบน pad ได้</span>
       </div>
       <div id="board"></div>
     </section>
@@ -407,6 +410,15 @@ function renderBoard() {
     stopB.addEventListener('pointerdown', ev => ev.stopPropagation());
     stopB.addEventListener('click', ev => { ev.stopPropagation(); stopPad(pad); });
     e.appendChild(stopB);
+    // Drag the grip onto another pad to swap places. The slot keeps its key.
+    const grip = h('div', 'grip', '⠿'); grip.title = 'ลากไปวางบน pad อื่นเพื่อสลับตำแหน่ง'; grip.draggable = true;
+    grip.addEventListener('pointerdown', ev => ev.stopPropagation());
+    grip.addEventListener('dragstart', ev => {
+      ev.dataTransfer.setData('application/x-ssb-pad', pad.id); ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setDragImage(e, e.offsetWidth / 2, 20); e.classList.add('dragging');
+    });
+    grip.addEventListener('dragend', () => { e.classList.remove('dragging'); document.querySelectorAll('.pad.dragover').forEach(x => x.classList.remove('dragover')); });
+    e.appendChild(grip);
     e.appendChild(h('div', 'name', empty ? 'ว่าง · คลิกหรือลากไฟล์มาวาง' : (pad.name || pad.fileName)));
     if (!empty) {
       const meta = h('div', 'meta');
@@ -424,12 +436,22 @@ function renderBoard() {
     e.addEventListener('dragleave', () => e.classList.remove('dragover'));
     e.addEventListener('drop', ev => {
       ev.preventDefault(); ev.stopPropagation(); e.classList.remove('dragover'); hideDropAll();
+      const fromId = ev.dataTransfer.getData('application/x-ssb-pad');
+      if (fromId) { swapPads(fromId, pad.id); return; }
       const list = [...ev.dataTransfer.files].filter(f => /^(audio|video)/.test(f.type) || VIDEO_EXT.test(f.name) || !f.type);
       if (list.length) assignFile(pad, list[0]).then(() => list.length > 1 && addFiles(list.slice(1)));
     });
     board.appendChild(e);
     padEls.set(pad.id, { e, bar, time: e.querySelector('.time') });
   });
+}
+function swapPads(aId, bId) {
+  const i = state.pads.findIndex(p => p.id === aId), j = state.pads.findIndex(p => p.id === bId);
+  if (i < 0 || j < 0 || i === j) return;
+  const a = state.pads[i], b = state.pads[j];
+  [a.key, b.key] = [b.key, a.key];
+  state.pads[i] = b; state.pads[j] = a;
+  save(); renderBoard(); if (selectedId === a.id || selectedId === b.id) renderPadTab();
 }
 function select(id) { selectedId = id; showTab('pad'); renderBoard(); renderPadTab(); }
 
@@ -590,7 +612,7 @@ function renderPadTab() {
   const bRight = h('button', 'small', 'ย้าย ▶'); bRight.onclick = () => movePad(pad, 1);
   b2.append(bLeft, bRight, bDup, bReset, bClear, bDel); root.appendChild(b2);
 }
-function movePad(pad, d) { const i = state.pads.indexOf(pad), j = i + d; if (j < 0 || j >= state.pads.length) return; [state.pads[i], state.pads[j]] = [state.pads[j], state.pads[i]]; save(); renderBoard(); }
+function movePad(pad, d) { const j = state.pads.indexOf(pad) + d; if (j >= 0 && j < state.pads.length) swapPads(pad.id, state.pads[j].id); }
 
 function renderMasterTab() {
   const root = $('#tab-master'); root.textContent = ''; const m = state.master;
